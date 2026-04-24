@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+option go_package = "pb/gen";
+
+enum HttpMethod {
+  HTTP_METHOD_UNSPECIFIED = 0;
+  
+  HTTP_METHOD_GET = 1;
+  HTTP_METHOD_POST = 2;
+  HTTP_METHOD_PUT = 3;
+  HTTP_METHOD_PATCH = 4;
+  HTTP_METHOD_DELETE = 5;
+  HTTP_METHOD_HEAD = 6;
+  HTTP_METHOD_OPTIONS = 7;
+  HTTP_METHOD_TRACE = 8;
+  HTTP_METHOD_CONNECT = 9;
+}
+
+message TunnelRequest {
+    HttpMethod method = 1;
+    bytes path = 2;
+    bytes body = 3;
+    repeated uint32 packed_headers = 4; // packed headers by static table
+    repeated string raw_headers = 5; // if is not even - header name. Else - header content.
+}
+
+message TunnelResponse {
+    uint32 code_response = 1;
+    bytes body = 2;
+    repeated uint32 packed_headers = 4; // packed headers by static table
+    repeated string raw_headers = 5; // if is not even - header name. Else - header content.
+}
+
+message HelloMessage {
+    repeated string endpoints = 1;
+    bytes key = 2;
+}
+
+message FriendsToMeetMessage {
+    repeated string nodes = 1;
+}
