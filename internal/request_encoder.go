@@ -2,8 +2,8 @@ package internal
 
 import (
 	"QMesh-Sidecar/internal/protos/pb/gen"
-	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/valyala/fasthttp"
 )
@@ -38,6 +38,7 @@ var tableSTR2UINT map[string]uint32 = map[string]uint32{
 	// CORS
 	"Access-Control-Allow-Origin: *":                   16,
 	"Access-Control-Allow-Methods: GET, POST, OPTIONS": 17,
+	"Accept: application/json":                         18,
 }
 
 var tableUINT2HEADER map[uint32]header = map[uint32]header{
@@ -58,7 +59,16 @@ var tableUINT2HEADER map[uint32]header = map[uint32]header{
 	15: {"Cache-Control", "max-age=0"},
 	16: {"Access-Control-Allow-Origin", "*"},
 	17: {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
+	18: {"Accept", "application/json"},
 }
+
+var (
+	builders = sync.Pool{
+		New: func() any {
+			return &strings.Builder{}
+		},
+	}
+)
 
 // --- REQUEST ---
 
@@ -66,7 +76,9 @@ func DecodeRequestFast(treq *gen.TunnelRequest) (*fasthttp.Request, error) {
 	req := fasthttp.AcquireRequest()
 
 	req.Header.SetMethod(treq.Method.String())
-	req.SetRequestURI(fmt.Sprintf("http://localhost:8080/%s", strings.TrimPrefix(string(treq.Path), "/")))
+	req.URI().SetScheme("http")
+	req.URI().SetHost("localhost:8080")
+	req.URI().SetPathBytes(treq.Path)
 	req.SetBody(treq.Body)
 
 	for _, v := range treq.PackedHeaders {
@@ -91,12 +103,11 @@ func EncodeRequestFast(req *fasthttp.Request) (*gen.TunnelRequest, error) {
 		Body:   req.Body(),
 	}
 
-	builder := strings.Builder{}
+	builder := getBuilder()
+	defer putBuilder(builder)
 
 	req.Header.VisitAll(func(key, value []byte) {
-		k, v := string(key), string(value)
-
-		buildHeader(key, value, &builder)
+		buildHeader(key, value, builder)
 
 		fullHeader := builder.String()
 		builder.Reset()
@@ -104,6 +115,7 @@ func EncodeRequestFast(req *fasthttp.Request) (*gen.TunnelRequest, error) {
 		if id, ok := tableSTR2UINT[fullHeader]; ok {
 			treq.PackedHeaders = append(treq.PackedHeaders, id)
 		} else {
+			k, v := string(key), string(value)
 			treq.RawHeaders = append(treq.RawHeaders, k, v)
 		}
 	})
@@ -119,17 +131,18 @@ func EncodeResponseFast(resp *fasthttp.Response) (*gen.TunnelResponse, error) {
 		Body:         resp.Body(),
 	}
 
-	builder := strings.Builder{}
+	builder := getBuilder()
+	defer putBuilder(builder)
 
 	resp.Header.VisitAll(func(key, value []byte) {
-		k, v := string(key), string(value)
-		buildHeader(key, value, &builder)
+		buildHeader(key, value, builder)
 		fullHeader := builder.String()
 		builder.Reset()
 
 		if id, ok := tableSTR2UINT[fullHeader]; ok {
 			tresp.PackedHeaders = append(tresp.PackedHeaders, id)
 		} else {
+			k, v := string(key), string(value)
 			tresp.RawHeaders = append(tresp.RawHeaders, k, v)
 		}
 	})
@@ -172,4 +185,13 @@ func buildHeader(k, v []byte, builder *strings.Builder) {
 	builder.Write(k)
 	builder.WriteString(": ")
 	builder.Write(v)
+}
+
+func getBuilder() *strings.Builder {
+	return builders.Get().(*strings.Builder)
+}
+
+func putBuilder(b *strings.Builder) {
+	b.Reset()
+	builders.Put(b)
 }
