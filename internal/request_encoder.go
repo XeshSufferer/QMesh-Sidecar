@@ -14,11 +14,50 @@ type header struct {
 }
 
 var tableSTR2UINT map[string]uint32 = map[string]uint32{
-	"Content-Type: application/json": 1,
+	// Content-Type
+	"Content-Type: application/json":                  1,
+	"Content-Type: application/x-www-form-urlencoded": 2,
+	"Content-Type: text/html; charset=utf-8":          3,
+	"Content-Type: text/plain; charset=utf-8":         4,
+	"Content-Type: application/grpc":                  5,
+	"Content-Type: application/octet-stream":          6,
+	"Content-Type: application/x-protobuf":            7,
+
+	// Connection & Encoding
+	"Connection: keep-alive":             8,
+	"Connection: close":                  9,
+	"Accept-Encoding: gzip, deflate, br": 10,
+	"Transfer-Encoding: chunked":         11,
+	"Vary: Accept-Encoding":              12,
+
+	// Cache Control
+	"Cache-Control: no-cache":  13,
+	"Cache-Control: no-store":  14,
+	"Cache-Control: max-age=0": 15,
+
+	// CORS
+	"Access-Control-Allow-Origin: *":                   16,
+	"Access-Control-Allow-Methods: GET, POST, OPTIONS": 17,
 }
 
 var tableUINT2HEADER map[uint32]header = map[uint32]header{
-	1: {"Content-Type", "application/json"},
+	1:  {"Content-Type", "application/json"},
+	2:  {"Content-Type", "application/x-www-form-urlencoded"},
+	3:  {"Content-Type", "text/html; charset=utf-8"},
+	4:  {"Content-Type", "text/plain; charset=utf-8"},
+	5:  {"Content-Type", "application/grpc"},
+	6:  {"Content-Type", "application/octet-stream"},
+	7:  {"Content-Type", "application/x-protobuf"},
+	8:  {"Connection", "keep-alive"},
+	9:  {"Connection", "close"},
+	10: {"Accept-Encoding", "gzip, deflate, br"},
+	11: {"Transfer-Encoding", "chunked"},
+	12: {"Vary", "Accept-Encoding"},
+	13: {"Cache-Control", "no-cache"},
+	14: {"Cache-Control", "no-store"},
+	15: {"Cache-Control", "max-age=0"},
+	16: {"Access-Control-Allow-Origin", "*"},
+	17: {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
 }
 
 // --- REQUEST ---
