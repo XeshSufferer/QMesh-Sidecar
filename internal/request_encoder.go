@@ -91,9 +91,15 @@ func EncodeRequestFast(req *fasthttp.Request) (*gen.TunnelRequest, error) {
 		Body:   req.Body(),
 	}
 
+	builder := strings.Builder{}
+
 	req.Header.VisitAll(func(key, value []byte) {
 		k, v := string(key), string(value)
-		fullHeader := fmt.Sprintf("%s: %s", k, v)
+
+		buildHeader(key, value, &builder)
+
+		fullHeader := builder.String()
+		builder.Reset()
 
 		if id, ok := tableSTR2UINT[fullHeader]; ok {
 			treq.PackedHeaders = append(treq.PackedHeaders, id)
@@ -113,9 +119,13 @@ func EncodeResponseFast(resp *fasthttp.Response) (*gen.TunnelResponse, error) {
 		Body:         resp.Body(),
 	}
 
+	builder := strings.Builder{}
+
 	resp.Header.VisitAll(func(key, value []byte) {
 		k, v := string(key), string(value)
-		fullHeader := fmt.Sprintf("%s: %s", k, v)
+		buildHeader(key, value, &builder)
+		fullHeader := builder.String()
+		builder.Reset()
 
 		if id, ok := tableSTR2UINT[fullHeader]; ok {
 			tresp.PackedHeaders = append(tresp.PackedHeaders, id)
@@ -156,4 +166,10 @@ func ReleaseRequest(req *fasthttp.Request) {
 
 func ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
+}
+
+func buildHeader(k, v []byte, builder *strings.Builder) {
+	builder.Write(k)
+	builder.WriteString(": ")
+	builder.Write(v)
 }
