@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"QMesh-Sidecar/internal/gossip"
 	"QMesh-Sidecar/internal/protos/pb/gen"
 	"bytes"
 	"context"
@@ -18,16 +19,20 @@ type Listener struct {
 	listener    *quic.Listener
 	Connections []Connection
 	connMutex   sync.RWMutex
+	nodesIPs    []string
+	nodesMutex  sync.RWMutex
 	buffers     *sync.Pool
 	trie        *Trie
+	gossip      *gossip.Gossip
 }
 
 type Connection struct {
-	Id   string
-	Conn *quic.Conn
+	Id     string
+	ConnIP string
+	Conn   *quic.Conn
 }
 
-func NewListener() *Listener {
+func NewListener(g *gossip.Gossip) *Listener {
 	pool := sync.Pool{
 		New: func() any {
 			return bytes.NewBuffer(make([]byte, 0, 2048))
@@ -38,6 +43,9 @@ func NewListener() *Listener {
 		Connections: make([]Connection, 0, 24),
 		buffers:     &pool,
 		trie:        NewTrie(),
+		nodesIPs:    make([]string, 0, 24),
+		nodesMutex:  sync.RWMutex{},
+		gossip:      g,
 	}
 }
 
@@ -81,7 +89,8 @@ func (l *Listener) serveConnection(conn *quic.Conn) {
 		return
 	}
 
-	connection := Connection{Id: uuid.New().String(), Conn: conn}
+	connIP := conn.RemoteAddr().String()
+	connection := Connection{Id: uuid.New().String(), Conn: conn, ConnIP: connIP}
 
 	l.connMutex.Lock()
 	l.Connections = append(l.Connections, connection)
@@ -89,9 +98,16 @@ func (l *Listener) serveConnection(conn *quic.Conn) {
 
 	l.trie.AddConnection(helloMsg.Endpoints, &connection)
 
+	if l.gossip != nil {
+		l.gossip.OnNodeJoin(connIP)
+	}
+
 	for {
 		stream, err := conn.AcceptStream(context.Background())
 		if err != nil {
+			if l.gossip != nil {
+				l.gossip.OnNodeLeave(connIP)
+			}
 			break
 		}
 		go l.serveStream(stream)
@@ -139,4 +155,27 @@ func (l *Listener) serveStream(stream *quic.Stream) {
 	}
 
 	stream.Write(data)
+}
+
+func (l *Listener) OnNodeJoin(ip string) {
+	l.nodesMutex.Lock()
+	defer l.nodesMutex.Unlock()
+	l.nodesIPs = append(l.nodesIPs, ip)
+}
+
+func (l *Listener) OnNodeLeave(ip string) {
+	l.nodesMutex.Lock()
+	defer l.nodesMutex.Unlock()
+	for i, nodeIP := range l.nodesIPs {
+		if nodeIP == ip {
+			l.nodesIPs = append(l.nodesIPs[:i], l.nodesIPs[i+1:]...)
+			break
+		}
+	}
+}
+
+func (l *Listener) GetNodesIPs() []string {
+	l.nodesMutex.RLock()
+	defer l.nodesMutex.RUnlock()
+	return l.nodesIPs
 }

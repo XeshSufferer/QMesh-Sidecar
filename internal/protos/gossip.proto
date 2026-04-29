@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+option go_package = "pb/gen/gossip";
+
+import "google/protobuf/timestamp.proto";
+
+message GossipMsg {
+    google.protobuf.Timestamp timestamp = 1;
+    bytes list_hash = 3;
+    uint32 ttl = 4;
+    uint32 version = 5;
+    repeated NodeUpdates diff = 2;
+}
+
+message NodeUpdates {
+    string node_ip = 1;
+    Status status = 2;
+}
+
+enum Status {
+    NEW = 0;
+    SUSPECT = 2;
+    DEAD = 3;
+}
+
+

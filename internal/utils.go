@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"io"
 	"sync"
 
@@ -10,27 +11,22 @@ import (
 var (
 	bufferPool = sync.Pool{
 		New: func() interface{} {
-			b := make([]byte, 0, 1024)
-			return &b
+			return bytes.NewBuffer(make([]byte, 0, 1024))
 		},
 	}
 )
 
 func MarshalToWriter(w io.Writer, m proto.Message) (int, error) {
-	pBuf := bufferPool.Get().(*[]byte)
-	buf := (*pBuf)[:0]
+	pBuf := bufferPool.Get().(*bytes.Buffer)
+	pBuf.Reset()
+	defer bufferPool.Put(pBuf)
+
 	options := proto.MarshalOptions{}
 
-	data, err := options.MarshalAppend(buf, m)
+	data, err := options.MarshalAppend(pBuf.Bytes(), m)
 	if err != nil {
-		bufferPool.Put(pBuf)
 		return 0, err
 	}
 
-	n, err := w.Write(data)
-
-	*pBuf = data
-	bufferPool.Put(pBuf)
-
-	return n, err
+	return w.Write(data)
 }

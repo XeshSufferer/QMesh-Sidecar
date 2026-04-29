@@ -29,7 +29,7 @@ func NewClient(trie *Trie) *Client {
 	}
 }
 
-func (c *Client) ServeRequest(req *fasthttp.Request) (*gen.TunnelResponse, error) {
+func (c *Client) ServeRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
 	path := string(req.URI().Path())
 	connections := c.trie.GetConnections(path)
 
@@ -57,7 +57,7 @@ func (c *Client) ServeRequest(req *fasthttp.Request) (*gen.TunnelResponse, error
 	return nil, lastErr
 }
 
-func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*gen.TunnelResponse, error) {
+func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*fasthttp.Response, error) {
 	stream, err := (*conn.Conn).OpenStreamSync(context.Background())
 	if err != nil {
 		return nil, err
@@ -100,5 +100,13 @@ func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*gen.Tunnel
 		return nil, err
 	}
 
-	return &resp, nil
+	response, err := DecodeResponseFast(&resp)
+
+	if err != nil {
+		ReleaseResponse(response)
+		log.Printf("Error by decode response to fasthttp.Response: %v", err)
+		return nil, err
+	}
+
+	return response, nil
 }
