@@ -9,10 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/quic-go/quic-go"
 	"github.com/valyala/fasthttp"
-	"google.golang.org/protobuf/proto"
 )
 
 type Listener struct {
@@ -84,13 +82,13 @@ func (l *Listener) serveConnection(conn *quic.Conn) {
 		return
 	}
 
-	var helloMsg gen.HelloMessage
-	if err := proto.Unmarshal(bufPtr.Bytes(), &helloMsg); err != nil {
+	helloMsg := gen.HelloMessage{}
+	if err := helloMsg.UnmarshalVT(bufPtr.Bytes()); err != nil {
 		return
 	}
 
 	connIP := conn.RemoteAddr().String()
-	connection := Connection{Id: uuid.New().String(), Conn: conn, ConnIP: connIP}
+	connection := Connection{Id: UUIDv4(), Conn: conn, ConnIP: connIP}
 
 	l.connMutex.Lock()
 	l.Connections = append(l.Connections, connection)
@@ -126,8 +124,8 @@ func (l *Listener) serveStream(stream *quic.Stream) {
 		return
 	}
 
-	var req gen.TunnelRequest
-	if err := proto.Unmarshal(bufPtr.Bytes(), &req); err != nil {
+	req := gen.TunnelRequest{}
+	if err := req.UnmarshalVT(bufPtr.Bytes()); err != nil {
 		return
 	}
 
@@ -143,13 +141,13 @@ func (l *Listener) serveStream(stream *quic.Stream) {
 	SendReq(encodedReq, resp)
 
 	response, err := EncodeResponseFast(resp)
+	defer ReleaseEncodedResponse(response)
 	if err != nil {
 		return
 	}
 
 	bufPtr.Reset()
-	options := proto.MarshalOptions{}
-	data, err := options.MarshalAppend(bufPtr.Bytes(), response)
+	data, err := response.MarshalVT()
 	if err != nil {
 		return
 	}

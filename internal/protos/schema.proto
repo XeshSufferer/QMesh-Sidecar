@@ -21,14 +21,14 @@ message TunnelRequest {
     bytes path = 2;
     bytes body = 3;
     repeated uint32 packed_headers = 4; // packed headers by static table
-    repeated string raw_headers = 5; // if is not even - header name. Else - header content.
+    repeated bytes raw_headers = 5; // if is not even - header name. Else - header content.
 }
 
 message TunnelResponse {
     uint32 code_response = 1;
     bytes body = 2;
     repeated uint32 packed_headers = 4; // packed headers by static table
-    repeated string raw_headers = 5; // if is not even - header name. Else - header content.
+    repeated bytes raw_headers = 5; // if is not even - header name. Else - header content.
 }
 
 message HelloMessage {

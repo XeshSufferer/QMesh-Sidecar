@@ -10,7 +10,6 @@ import (
 	"sync"
 
 	"github.com/valyala/fasthttp"
-	"google.golang.org/protobuf/proto"
 )
 
 type Client struct {
@@ -30,22 +29,22 @@ func NewClient(trie *Trie) *Client {
 }
 
 func (c *Client) ServeRequest(req *fasthttp.Request) (*fasthttp.Response, error) {
-	path := string(req.URI().Path())
+	path := ZeroAllocBytesToString(req.URI().Path())
 	connections := c.trie.GetConnections(path)
 
 	if len(connections) == 0 {
 		return nil, io.EOF
 	}
 
-	indices := rand.Perm(len(connections))
+	indices := rand.IntN(len(connections))
 	maxRetries := 3
-	if len(indices) < maxRetries {
-		maxRetries = len(indices)
+	if indices < maxRetries {
+		maxRetries = indices
 	}
 
 	var lastErr error
 	for i := 0; i < maxRetries; i++ {
-		conn := connections[indices[i]]
+		conn := connections[indices]
 		resp, err := c.doRequest(conn, req)
 		if err == nil {
 			return resp, nil
@@ -64,6 +63,7 @@ func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*fasthttp.R
 	}
 
 	encodedReq, err := EncodeRequestFast(req)
+	defer ReleaseEncodedRequest(encodedReq)
 	if err != nil {
 		stream.CancelRead(0)
 		stream.Close()
@@ -74,8 +74,7 @@ func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*fasthttp.R
 	bufPtr.Reset()
 	defer c.buff.Put(bufPtr)
 
-	options := proto.MarshalOptions{}
-	data, err := options.MarshalAppend(bufPtr.Bytes(), encodedReq)
+	data, err := encodedReq.MarshalVT()
 	if err != nil {
 		stream.CancelRead(0)
 		stream.Close()
@@ -95,12 +94,13 @@ func (c *Client) doRequest(conn *Connection, req *fasthttp.Request) (*fasthttp.R
 		return nil, err
 	}
 
-	var resp gen.TunnelResponse
-	if err := proto.Unmarshal(bufPtr.Bytes(), &resp); err != nil {
+	resp := gen.TunnelResponse{}
+	if err := resp.UnmarshalVT(bufPtr.Bytes()); err != nil {
 		return nil, err
 	}
 
 	response, err := DecodeResponseFast(&resp)
+	defer ReleaseResponse(response)
 
 	if err != nil {
 		ReleaseResponse(response)

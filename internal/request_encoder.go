@@ -2,70 +2,79 @@ package internal
 
 import (
 	"QMesh-Sidecar/internal/protos/pb/gen"
+	"bytes"
+	"io"
 	"strings"
 	"sync"
 
 	"github.com/valyala/fasthttp"
 )
 
-type header struct {
-	Name    string
-	Content string
+var methodBytes = [][]byte{
+	ZeroAllocStringToBytes("UNSPECIFIED"),
+	ZeroAllocStringToBytes("GET"),
+	ZeroAllocStringToBytes("POST"),
+	ZeroAllocStringToBytes("PUT"),
+	ZeroAllocStringToBytes("PATCH"),
+	ZeroAllocStringToBytes("DELETE"),
+	ZeroAllocStringToBytes("HEAD"),
+	ZeroAllocStringToBytes("OPTIONS"),
+	ZeroAllocStringToBytes("TRACE"),
+	ZeroAllocStringToBytes("CONNECT"),
 }
 
-var tableSTR2UINT map[string]uint32 = map[string]uint32{
-	// Content-Type
-	"Content-Type: application/json":                  1,
-	"Content-Type: application/x-www-form-urlencoded": 2,
-	"Content-Type: text/html; charset=utf-8":          3,
-	"Content-Type: text/plain; charset=utf-8":         4,
-	"Content-Type: application/grpc":                  5,
-	"Content-Type: application/octet-stream":          6,
-	"Content-Type: application/x-protobuf":            7,
+var table = [][]byte{
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("application/json"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("application/x-www-form-urlencoded"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("text/html; charset=utf-8"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("text/plain; charset=utf-8"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("application/grpc"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("application/octet-stream"),
+	ZeroAllocStringToBytes("Content-Type"), ZeroAllocStringToBytes("application/x-protobuf"),
 
-	// Connection & Encoding
-	"Connection: keep-alive":             8,
-	"Connection: close":                  9,
-	"Accept-Encoding: gzip, deflate, br": 10,
-	"Transfer-Encoding: chunked":         11,
-	"Vary: Accept-Encoding":              12,
+	ZeroAllocStringToBytes("Connection"), ZeroAllocStringToBytes("keep-alive"),
+	ZeroAllocStringToBytes("Connection"), ZeroAllocStringToBytes("close"),
+	ZeroAllocStringToBytes("Accept-Encoding"), ZeroAllocStringToBytes("gzip, deflate, br"),
+	ZeroAllocStringToBytes("Transfer-Encoding"), ZeroAllocStringToBytes("chunked"),
+	ZeroAllocStringToBytes("Vary"), ZeroAllocStringToBytes("Accept-Encoding"),
 
-	// Cache Control
-	"Cache-Control: no-cache":  13,
-	"Cache-Control: no-store":  14,
-	"Cache-Control: max-age=0": 15,
+	ZeroAllocStringToBytes("Cache-Control"), ZeroAllocStringToBytes("no-cache"),
+	ZeroAllocStringToBytes("Cache-Control"), ZeroAllocStringToBytes("no-store"),
+	ZeroAllocStringToBytes("Cache-Control"), ZeroAllocStringToBytes("max-age=0"),
 
-	// CORS
-	"Access-Control-Allow-Origin: *":                   16,
-	"Access-Control-Allow-Methods: GET, POST, OPTIONS": 17,
-	"Accept: application/json":                         18,
-}
-
-var tableUINT2HEADER map[uint32]header = map[uint32]header{
-	1:  {"Content-Type", "application/json"},
-	2:  {"Content-Type", "application/x-www-form-urlencoded"},
-	3:  {"Content-Type", "text/html; charset=utf-8"},
-	4:  {"Content-Type", "text/plain; charset=utf-8"},
-	5:  {"Content-Type", "application/grpc"},
-	6:  {"Content-Type", "application/octet-stream"},
-	7:  {"Content-Type", "application/x-protobuf"},
-	8:  {"Connection", "keep-alive"},
-	9:  {"Connection", "close"},
-	10: {"Accept-Encoding", "gzip, deflate, br"},
-	11: {"Transfer-Encoding", "chunked"},
-	12: {"Vary", "Accept-Encoding"},
-	13: {"Cache-Control", "no-cache"},
-	14: {"Cache-Control", "no-store"},
-	15: {"Cache-Control", "max-age=0"},
-	16: {"Access-Control-Allow-Origin", "*"},
-	17: {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
-	18: {"Accept", "application/json"},
+	ZeroAllocStringToBytes("Access-Control-Allow-Origin"), ZeroAllocStringToBytes("*"),
+	ZeroAllocStringToBytes("Access-Control-Allow-Methods"), ZeroAllocStringToBytes("GET, POST, OPTIONS"),
+	ZeroAllocStringToBytes("Accept"), ZeroAllocStringToBytes("application/json"),
 }
 
 var (
 	builders = sync.Pool{
 		New: func() any {
 			return &strings.Builder{}
+		},
+	}
+
+	byteBuffers = sync.Pool{
+		New: func() any {
+			return bytes.NewBuffer(make([]byte, 0, 256))
+		},
+	}
+
+	responses = sync.Pool{
+		New: func() any {
+			return &gen.TunnelResponse{
+				PackedHeaders: make([]uint32, 0, len(table)/2),
+				RawHeaders:    make([][]byte, 0, 32),
+			}
+		},
+	}
+
+	requests = sync.Pool{
+		New: func() any {
+			return &gen.TunnelRequest{
+				PackedHeaders: make([]uint32, 0, len(table)/2),
+				RawHeaders:    make([][]byte, 0, 32),
+			}
 		},
 	}
 )
@@ -75,21 +84,29 @@ var (
 func DecodeRequestFast(treq *gen.TunnelRequest) (*fasthttp.Request, error) {
 	req := fasthttp.AcquireRequest()
 
-	req.Header.SetMethod(treq.Method.String())
-	req.URI().SetScheme("http")
-	req.URI().SetHost("localhost:8080")
-	req.URI().SetPathBytes(treq.Path)
+	if int(treq.Method) < len(methodBytes) {
+		req.Header.SetMethodBytes(methodBytes[treq.Method])
+	}
+
+	buff := getBuff()
+	defer putBuff(buff)
+
+	buff.Write(ZeroAllocStringToBytes("http://localhost:8080"))
+	buff.Write(treq.Path)
+	req.SetRequestURI(ZeroAllocBytesToString(buff.Bytes()))
 	req.SetBody(treq.Body)
 
+	// packed headers
 	for _, v := range treq.PackedHeaders {
-		if h, ok := tableUINT2HEADER[v]; ok {
-			req.Header.Set(h.Name, h.Content)
+		if k, val, ok := getHeaderByID(v); ok {
+			req.Header.SetBytesKV(k, val)
 		}
 	}
 
+	// raw headers
 	for i := 0; i < len(treq.RawHeaders); i += 2 {
 		if i+1 < len(treq.RawHeaders) {
-			req.Header.Set(treq.RawHeaders[i], treq.RawHeaders[i+1])
+			req.Header.SetBytesKV(treq.RawHeaders[i], treq.RawHeaders[i+1])
 		}
 	}
 
@@ -97,53 +114,36 @@ func DecodeRequestFast(treq *gen.TunnelRequest) (*fasthttp.Request, error) {
 }
 
 func EncodeRequestFast(req *fasthttp.Request) (*gen.TunnelRequest, error) {
-	treq := &gen.TunnelRequest{
-		Method: gen.HttpMethod(gen.HttpMethod_value[string(req.Header.Method())]),
-		Path:   req.URI().Path(),
-		Body:   req.Body(),
-	}
+	treq := getRequest()
 
-	builder := getBuilder()
-	defer putBuilder(builder)
+	treq.Method = gen.HttpMethod(gen.HttpMethod_value[ZeroAllocBytesToString(req.Header.Method())])
+	treq.Path = req.URI().Path()
+	treq.Body = req.Body()
 
 	req.Header.VisitAll(func(key, value []byte) {
-		buildHeader(key, value, builder)
-
-		fullHeader := builder.String()
-		builder.Reset()
-
-		if id, ok := tableSTR2UINT[fullHeader]; ok {
+		if id, ok := findHeaderID(key, value); ok {
 			treq.PackedHeaders = append(treq.PackedHeaders, id)
 		} else {
-			k, v := string(key), string(value)
-			treq.RawHeaders = append(treq.RawHeaders, k, v)
+			treq.RawHeaders = append(treq.RawHeaders, key, value)
 		}
 	})
 
 	return treq, nil
 }
 
-// --- RESPONSE ---
+// --- RESPONSE
 
 func EncodeResponseFast(resp *fasthttp.Response) (*gen.TunnelResponse, error) {
-	tresp := &gen.TunnelResponse{
-		CodeResponse: uint32(resp.StatusCode()),
-		Body:         resp.Body(),
-	}
+	tresp := getResponse()
 
-	builder := getBuilder()
-	defer putBuilder(builder)
+	tresp.CodeResponse = uint32(resp.StatusCode())
+	tresp.Body = resp.Body()
 
 	resp.Header.VisitAll(func(key, value []byte) {
-		buildHeader(key, value, builder)
-		fullHeader := builder.String()
-		builder.Reset()
-
-		if id, ok := tableSTR2UINT[fullHeader]; ok {
+		if id, ok := findHeaderID(key, value); ok {
 			tresp.PackedHeaders = append(tresp.PackedHeaders, id)
 		} else {
-			k, v := string(key), string(value)
-			tresp.RawHeaders = append(tresp.RawHeaders, k, v)
+			tresp.RawHeaders = append(tresp.RawHeaders, key, value)
 		}
 	})
 
@@ -157,14 +157,14 @@ func DecodeResponseFast(tresp *gen.TunnelResponse) (*fasthttp.Response, error) {
 	resp.SetBody(tresp.Body)
 
 	for _, v := range tresp.PackedHeaders {
-		if h, ok := tableUINT2HEADER[v]; ok {
-			resp.Header.Set(h.Name, h.Content)
+		if k, val, ok := getHeaderByID(v); ok {
+			resp.Header.SetBytesKV(k, val)
 		}
 	}
 
 	for i := 0; i < len(tresp.RawHeaders); i += 2 {
 		if i+1 < len(tresp.RawHeaders) {
-			resp.Header.Set(tresp.RawHeaders[i], tresp.RawHeaders[i+1])
+			resp.Header.SetBytesKV(tresp.RawHeaders[i], tresp.RawHeaders[i+1])
 		}
 	}
 
@@ -181,10 +181,43 @@ func ReleaseResponse(resp *fasthttp.Response) {
 	fasthttp.ReleaseResponse(resp)
 }
 
-func buildHeader(k, v []byte, builder *strings.Builder) {
+func ReleaseEncodedResponse(resp *gen.TunnelResponse) {
+	putResponse(resp)
+}
+
+func ReleaseEncodedRequest(req *gen.TunnelRequest) {
+	putRequest(req)
+}
+
+func buildHeader(k, v []byte, builder io.Writer) {
 	builder.Write(k)
-	builder.WriteString(": ")
+	builder.Write(ZeroAllocStringToBytes(": "))
 	builder.Write(v)
+}
+
+func getRequest() *gen.TunnelRequest {
+	return requests.Get().(*gen.TunnelRequest)
+}
+
+func putRequest(req *gen.TunnelRequest) {
+	req.Method = 0
+	req.Path = nil
+	req.Body = nil
+	req.PackedHeaders = req.PackedHeaders[:0]
+	req.RawHeaders = req.RawHeaders[:0]
+	requests.Put(req)
+}
+
+func getResponse() *gen.TunnelResponse {
+	return responses.Get().(*gen.TunnelResponse)
+}
+
+func putResponse(resp *gen.TunnelResponse) {
+	resp.CodeResponse = 0
+	resp.Body = nil
+	resp.PackedHeaders = resp.PackedHeaders[:0]
+	resp.RawHeaders = resp.RawHeaders[:0]
+	responses.Put(resp)
 }
 
 func getBuilder() *strings.Builder {
@@ -194,4 +227,36 @@ func getBuilder() *strings.Builder {
 func putBuilder(b *strings.Builder) {
 	b.Reset()
 	builders.Put(b)
+}
+
+func getBuff() *bytes.Buffer {
+	return byteBuffers.Get().(*bytes.Buffer)
+}
+
+func putBuff(arr *bytes.Buffer) {
+	arr.Reset()
+	byteBuffers.Put(arr)
+}
+
+func findHeaderID(key, val []byte) (uint32, bool) {
+	var id uint32 = 1
+
+	for i := 0; i < len(table); i += 2 {
+		if bytes.Equal(table[i], key) && bytes.Equal(table[i+1], val) {
+			return id, true
+		}
+		id++
+	}
+	return 0, false
+}
+
+func getHeaderByID(id uint32) (k, v []byte, ok bool) {
+	if id == 0 {
+		return nil, nil, false
+	}
+	i := int((id - 1) * 2)
+	if i+1 >= len(table) {
+		return nil, nil, false
+	}
+	return table[i], table[i+1], true
 }

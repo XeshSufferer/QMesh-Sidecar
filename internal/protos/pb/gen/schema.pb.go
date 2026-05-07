@@ -97,7 +97,7 @@ type TunnelRequest struct {
 	Path          []byte                 `protobuf:"bytes,2,opt,name=path,proto3" json:"path,omitempty"`
 	Body          []byte                 `protobuf:"bytes,3,opt,name=body,proto3" json:"body,omitempty"`
 	PackedHeaders []uint32               `protobuf:"varint,4,rep,packed,name=packed_headers,json=packedHeaders,proto3" json:"packed_headers,omitempty"` // packed headers by static table
-	RawHeaders    []string               `protobuf:"bytes,5,rep,name=raw_headers,json=rawHeaders,proto3" json:"raw_headers,omitempty"`                  // if is not even - header name. Else - header content.
+	RawHeaders    [][]byte               `protobuf:"bytes,5,rep,name=raw_headers,json=rawHeaders,proto3" json:"raw_headers,omitempty"`                  // if is not even - header name. Else - header content.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -160,7 +160,7 @@ func (x *TunnelRequest) GetPackedHeaders() []uint32 {
 	return nil
 }
 
-func (x *TunnelRequest) GetRawHeaders() []string {
+func (x *TunnelRequest) GetRawHeaders() [][]byte {
 	if x != nil {
 		return x.RawHeaders
 	}
@@ -172,7 +172,7 @@ type TunnelResponse struct {
 	CodeResponse  uint32                 `protobuf:"varint,1,opt,name=code_response,json=codeResponse,proto3" json:"code_response,omitempty"`
 	Body          []byte                 `protobuf:"bytes,2,opt,name=body,proto3" json:"body,omitempty"`
 	PackedHeaders []uint32               `protobuf:"varint,4,rep,packed,name=packed_headers,json=packedHeaders,proto3" json:"packed_headers,omitempty"` // packed headers by static table
-	RawHeaders    []string               `protobuf:"bytes,5,rep,name=raw_headers,json=rawHeaders,proto3" json:"raw_headers,omitempty"`                  // if is not even - header name. Else - header content.
+	RawHeaders    [][]byte               `protobuf:"bytes,5,rep,name=raw_headers,json=rawHeaders,proto3" json:"raw_headers,omitempty"`                  // if is not even - header name. Else - header content.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -228,7 +228,7 @@ func (x *TunnelResponse) GetPackedHeaders() []uint32 {
 	return nil
 }
 
-func (x *TunnelResponse) GetRawHeaders() []string {
+func (x *TunnelResponse) GetRawHeaders() [][]byte {
 	if x != nil {
 		return x.RawHeaders
 	}
@@ -341,13 +341,13 @@ const file_schema_proto_rawDesc = "" +
 	"\x04path\x18\x02 \x01(\fR\x04path\x12\x12\n" +
 	"\x04body\x18\x03 \x01(\fR\x04body\x12%\n" +
 	"\x0epacked_headers\x18\x04 \x03(\rR\rpackedHeaders\x12\x1f\n" +
-	"\vraw_headers\x18\x05 \x03(\tR\n" +
+	"\vraw_headers\x18\x05 \x03(\fR\n" +
 	"rawHeaders\"\x91\x01\n" +
 	"\x0eTunnelResponse\x12#\n" +
 	"\rcode_response\x18\x01 \x01(\rR\fcodeResponse\x12\x12\n" +
 	"\x04body\x18\x02 \x01(\fR\x04body\x12%\n" +
 	"\x0epacked_headers\x18\x04 \x03(\rR\rpackedHeaders\x12\x1f\n" +
-	"\vraw_headers\x18\x05 \x03(\tR\n" +
+	"\vraw_headers\x18\x05 \x03(\fR\n" +
 	"rawHeaders\">\n" +
 	"\fHelloMessage\x12\x1c\n" +
 	"\tendpoints\x18\x01 \x03(\tR\tendpoints\x12\x10\n" +

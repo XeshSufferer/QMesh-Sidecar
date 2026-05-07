@@ -1,7 +1,6 @@
 package internal
 
 import (
-	"strings"
 	"sync"
 )
 
@@ -24,54 +23,130 @@ func NewTrie() *Trie {
 	}
 }
 
-func splitPath(path string) []string {
-	path = strings.Trim(path, "/")
-	if path == "" {
-		return nil
-	}
-	return strings.Split(path, "/")
-}
-
 func (t *Trie) GetNode(path string) (*node, bool) {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	prefixes := splitPath(path)
-	current := t.root
+	startTrim := 0
+	endTrim := len(path)
 
-	for _, v := range prefixes {
-		next, ok := current.child[v]
-		if !ok {
-			return nil, false
-		}
-		current = next
+	if endTrim > 0 && path[0] == '/' {
+		startTrim++
 	}
+	if endTrim > startTrim && path[endTrim-1] == '/' {
+		endTrim--
+	}
+
+	if endTrim <= startTrim {
+		return t.root, true
+	}
+
+	pathBytes := ZeroAllocStringToBytes(path)
+	current := t.root
+	start := startTrim
+
+	for i := startTrim; i <= endTrim; i++ {
+		if i == endTrim || pathBytes[i] == '/' {
+			if i > start {
+				seg := pathBytes[start:i]
+				next, ok := current.child[string(seg)]
+				if !ok {
+					return nil, false
+				}
+				current = next
+			}
+			start = i + 1
+		}
+	}
+
 	return current, true
 }
 
-func (t *Trie) EnsureNode(path string) *node {
+func (t *Trie) EnsureNode(pathStr string) *node {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	prefixes := splitPath(path)
-	current := t.root
+	startTrim := 0
+	endTrim := len(pathStr)
 
-	for _, v := range prefixes {
-		if _, ok := current.child[v]; !ok {
-			current.child[v] = &node{
-				child:       make(map[string]*node),
-				connections: make([]*Connection, 0),
+	if endTrim > 0 && pathStr[0] == '/' {
+		startTrim++
+	}
+	if endTrim > startTrim && pathStr[endTrim-1] == '/' {
+		endTrim--
+	}
+
+	pathBytes := ZeroAllocStringToBytes(pathStr)
+	current := t.root
+	if endTrim <= startTrim {
+		return current
+	}
+
+	start := startTrim
+	for i := startTrim; i <= endTrim; i++ {
+		if i == endTrim || pathBytes[i] == '/' {
+			if i > start {
+				seg := pathBytes[start:i]
+				key := string(seg)
+				next, ok := current.child[key]
+				if !ok {
+					next = &node{
+						child:       make(map[string]*node),
+						connections: make([]*Connection, 0),
+					}
+					current.child[key] = next
+				}
+				current = next
 			}
+			start = i + 1
 		}
-		current = current.child[v]
+	}
+	return current
+}
+
+func (t *Trie) dangerEnsureNode(path string) *node {
+	startTrim := 0
+	endTrim := len(path)
+
+	if endTrim > 0 && path[0] == '/' {
+		startTrim++
+	}
+	if endTrim > startTrim && path[endTrim-1] == '/' {
+		endTrim--
+	}
+
+	pathBytes := ZeroAllocStringToBytes(path)
+	current := t.root
+	if endTrim <= startTrim {
+		return current
+	}
+
+	start := startTrim
+	for i := startTrim; i <= endTrim; i++ {
+		if i == endTrim || pathBytes[i] == '/' {
+			if i > start {
+				seg := pathBytes[start:i]
+				key := string(seg)
+				next, ok := current.child[key]
+				if !ok {
+					next = &node{
+						child:       make(map[string]*node),
+						connections: make([]*Connection, 0),
+					}
+					current.child[key] = next
+				}
+				current = next
+			}
+			start = i + 1
+		}
 	}
 	return current
 }
 
 func (t *Trie) AddConnection(paths []string, conn *Connection) {
 	for _, path := range paths {
-		n := t.EnsureNode(path)
 		t.mu.Lock()
+		n := t.dangerEnsureNode(path)
 		n.connections = append(n.connections, conn)
 		t.mu.Unlock()
 	}
@@ -110,22 +185,47 @@ func (t *Trie) RemoveConnectionByID(path string, connID string) {
 }
 
 func (t *Trie) RemovePath(path string) {
-	prefixes := splitPath(path)
-	if len(prefixes) == 0 {
+	startTrim := 0
+	endTrim := len(path)
+
+	if endTrim > 0 && path[0] == '/' {
+		startTrim++
+	}
+	if endTrim > startTrim && path[endTrim-1] == '/' {
+		endTrim--
+	}
+
+	if endTrim <= startTrim {
 		return
 	}
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	pathBytes := ZeroAllocStringToBytes(path)
 	current := t.root
-	for i := 0; i < len(prefixes)-1; i++ {
-		next, ok := current.child[prefixes[i]]
-		if !ok {
-			return
+	var lastParent *node
+	var lastSegment string
+
+	start := startTrim
+	for i := startTrim; i <= endTrim; i++ {
+		if i == endTrim || pathBytes[i] == '/' {
+			if i > start {
+				seg := pathBytes[start:i]
+				key := string(seg)
+				next, ok := current.child[key]
+				if !ok {
+					return
+				}
+				lastParent = current
+				lastSegment = key
+				current = next
+			}
+			start = i + 1
 		}
-		current = next
 	}
 
-	delete(current.child, prefixes[len(prefixes)-1])
+	if lastParent != nil {
+		delete(lastParent.child, lastSegment)
+	}
 }
