@@ -20,3 +20,15 @@ func SeedsFromEnv() []string {
 	}
 	return strings.Split(seeds, ",")
 }
+
+func SeedsFromFile(path string) []string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	seeds := strings.TrimSpace(string(data))
+	if seeds == "" {
+		return nil
+	}
+	return strings.Split(seeds, ",")
+}

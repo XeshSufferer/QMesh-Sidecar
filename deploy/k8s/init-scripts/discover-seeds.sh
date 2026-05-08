@@ -1,36 +1,57 @@
-#!/bin/sh
+#!/bin/bash
 set -e
 
-SERVICE_NAME="${SERVICE_NAME:-qmesh-sidecar}"
 NAMESPACE="${NAMESPACE:-default}"
+SERVICE_NAME="${SERVICE_NAME:-qmesh-sidecar}"
 GOSSIP_PORT="${GOSSIP_PORT:-4221}"
+OUTPUT_FILE="${OUTPUT_FILE:-/shared/gossip-seeds}"
 
-echo "Discovering QMesh seeds from headless service: ${SERVICE_NAME}.${NAMESPACE}.svc.cluster.local"
+echo "QMesh Sidecar Seed Discovery"
+echo "Namespace: ${NAMESPACE}"
+echo "Service: ${SERVICE_NAME}"
 
-# Wait for DNS to be ready
+# Wait for Kubernetes API
 sleep 2
 
-# Resolve all A records for the headless service
-# Format returned by nslookup: multiple Address entries
+# Get endpoints from headless service
 SEEDS=""
-ADDRESSES=$(nslookup "${SERVICE_NAME}.${NAMESPACE}.svc.cluster.local" 2>/dev/null | grep -A 100 "Address" | grep -E "^Address: " | awk '{print $2}' | sort -u)
-
-for addr in $ADDRESSES; do
-    if [ -n "$SEEDS" ]; then
-        SEEDS="${SEEDS},${addr}:${GOSSIP_PORT}"
-    else
-        SEEDS="${addr}:${GOSSIP_PORT}"
+if command -v kubectl &> /dev/null; then
+    echo "Using kubectl to discover endpoints..."
+    ENDPOINTS=$(kubectl get endpoints "${SERVICE_NAME}" -n "${NAMESPACE}" -o jsonpath='{.subsets[*].addresses[*].ip}' 2>/dev/null || echo "")
+    
+    if [ -n "$ENDPOINTS" ]; then
+        for ip in $ENDPOINTS; do
+            if [ -n "$SEEDS" ]; then
+                SEEDS="${SEEDS},${ip}:${GOSSIP_PORT}"
+            else
+                SEEDS="${ip}:${GOSSIP_PORT}"
+            fi
+        done
     fi
-done
-
-if [ -z "$SEEDS" ]; then
-    echo "No seeds discovered, starting as seed node"
-    export GOSSIP_SEEDS=""
 else
-    echo "Discovered seeds: ${SEEDS}"
-    export GOSSIP_SEEDS="$SEEDS"
+    echo "kubectl not found, using DNS resolution..."
+    # Fallback to DNS resolution
+    DNS_RESULT=$(nslookup "${SERVICE_NAME}.${NAMESPACE}.svc.cluster.local" 2>/dev/null | grep "Address" | tail -n +2 | awk '{print $2}' | sort -u || echo "")
+    
+    for ip in $DNS_RESULT; do
+        if [ -n "$SEEDS" ]; then
+            SEEDS="${SEEDS},${ip}:${GOSSIP_PORT}"
+        else
+            SEEDS="${ip}:${GOSSIP_PORT}"
+        fi
+    done
 fi
 
-# Write seeds to shared volume for sidecar to read
-echo "$GOSSIP_SEEDS" > /shared/gossip-seeds
-echo "Seeds written to /shared/gossip-seeds"
+# Remove own IP if POD_IP is set
+if [ -n "${POD_IP}" ] && [ -n "$SEEDS" ]; then
+    SEEDS=$(echo "$SEEDS" | sed "s/${POD_IP}:${GOSSIP_PORT}//g" | sed 's/,,/,/g' | sed 's/^,//' | sed 's/,$//')
+fi
+
+echo "Discovered seeds: ${SEEDS:-none}"
+
+# Write to shared volume
+mkdir -p "$(dirname "${OUTPUT_FILE}")"
+echo "$SEEDS" > "$OUTPUT_FILE"
+
+echo "Seeds written to ${OUTPUT_FILE}"
+cat "$OUTPUT_FILE"

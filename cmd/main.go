@@ -10,6 +10,9 @@ import (
 
 func main() {
 	seeds := gossip.SeedsFromEnv()
+	if len(seeds) == 0 {
+		seeds = gossip.SeedsFromFile("/shared/gossip-seeds")
+	}
 	gossipInstance := gossip.NewGossip(seeds)
 
 	if err := gossipInstance.Start(); err != nil {
