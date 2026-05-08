@@ -179,3 +179,7 @@ func (l *Listener) GetNodesIPs() []string {
 	defer l.nodesMutex.RUnlock()
 	return l.nodesIPs
 }
+
+func (l *Listener) GetTrie() *Trie {
+	return l.trie
+}

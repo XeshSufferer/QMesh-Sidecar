@@ -1,7 +1,8 @@
-.PHONY: build docker-build docker-push deploy clean
+.PHONY: build docker-build docker-push docker-build-init deploy clean
 
 BINARY_NAME=sidecar
 IMAGE_NAME=qmesh-sidecar
+INIT_IMAGE_NAME=qmesh-init
 IMAGE_TAG?=latest
 REGISTRY?=localhost:5000
 
@@ -11,8 +12,12 @@ build:
 docker-build:
 	docker build -t $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG) .
 
+docker-build-init:
+	docker build -f deploy/k8s/init-container/Dockerfile.init -t $(REGISTRY)/$(INIT_IMAGE_NAME):$(IMAGE_TAG) .
+
 docker-push:
 	docker push $(REGISTRY)/$(IMAGE_NAME):$(IMAGE_TAG)
+	docker push $(REGISTRY)/$(INIT_IMAGE_NAME):$(IMAGE_TAG)
 
 deploy:
 	kubectl apply -f deploy/k8s/qmesh-headless-service.yaml

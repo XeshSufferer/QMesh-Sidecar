@@ -1,0 +1,8 @@
+FROM alpine:3.20
+
+RUN apk add --no-cache iptables iproute2 kubectl
+
+COPY init-scripts/setup-iptables.sh /usr/local/bin/setup-iptables.sh
+RUN chmod +x /usr/local/bin/setup-iptables.sh
+
+ENTRYPOINT ["/usr/local/bin/setup-iptables.sh"]

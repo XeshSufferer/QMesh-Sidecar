@@ -24,6 +24,14 @@ func main() {
 
 	go listener.StartListen()
 
+	// Start transparent proxy
+	transparentProxy := internal.NewTransparentProxy(listener.GetTrie())
+	go func() {
+		if err := transparentProxy.Start("3128"); err != nil {
+			log.Printf("Failed to start transparent proxy: %v", err)
+		}
+	}()
+
 	fmt.Println("QMesh Sidecar started!")
 	select {}
 }
