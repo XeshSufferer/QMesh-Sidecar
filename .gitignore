@@ -11,6 +11,7 @@
 # Testing features
 /__TEST__
 /__pycache__
+/build
 
 # Test binary, built with `go test -c`
 *.test
