@@ -8,13 +8,16 @@ import (
 	"QMesh-Sidecar/internal/protos/pb/gen"
 )
 
+var sink string
+var sinkBytes []byte
+
 func BenchmarkZeroAllocBytesToString_Short(b *testing.B) {
 	data := []byte("hello")
 
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocBytesToString(data)
+		sink = ZeroAllocBytesToString(data)
 	}
 }
 
@@ -24,7 +27,7 @@ func BenchmarkZeroAllocBytesToString_Medium(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocBytesToString(data)
+		sink = ZeroAllocBytesToString(data)
 	}
 }
 
@@ -34,7 +37,7 @@ func BenchmarkZeroAllocBytesToString_Long(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocBytesToString(data)
+		sink = ZeroAllocBytesToString(data)
 	}
 }
 
@@ -47,7 +50,7 @@ func BenchmarkZeroAllocBytesToString_Large(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocBytesToString(data)
+		sink = ZeroAllocBytesToString(data)
 	}
 }
 
@@ -57,7 +60,7 @@ func BenchmarkZeroAllocStringToBytes_Short(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocStringToBytes(s)
+		sinkBytes = ZeroAllocStringToBytes(s)
 	}
 }
 
@@ -67,7 +70,7 @@ func BenchmarkZeroAllocStringToBytes_Medium(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocStringToBytes(s)
+		sinkBytes = ZeroAllocStringToBytes(s)
 	}
 }
 
@@ -77,7 +80,7 @@ func BenchmarkZeroAllocStringToBytes_Long(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = ZeroAllocStringToBytes(s)
+		sinkBytes = ZeroAllocStringToBytes(s)
 	}
 }
 
@@ -88,7 +91,7 @@ func BenchmarkStringConversion_RoundTrip(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		s := ZeroAllocBytesToString(original)
-		_ = ZeroAllocStringToBytes(s)
+		sinkBytes = ZeroAllocStringToBytes(s)
 	}
 }
 
@@ -98,7 +101,7 @@ func BenchmarkStdConversion_BytesToString(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = string(data)
+		sink = string(data)
 	}
 }
 
@@ -108,7 +111,7 @@ func BenchmarkStdConversion_StringToBytes(b *testing.B) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = []byte(s)
+		sinkBytes = []byte(s)
 	}
 }
 

@@ -116,7 +116,11 @@ func DecodeRequestFast(treq *gen.TunnelRequest) (*fasthttp.Request, error) {
 func EncodeRequestFast(req *fasthttp.Request) (*gen.TunnelRequest, error) {
 	treq := getRequest()
 
-	treq.Method = gen.HttpMethod(gen.HttpMethod_value[ZeroAllocBytesToString(req.Header.Method())])
+	methodName := ZeroAllocBytesToString(req.Header.Method())
+	if val, ok := gen.HttpMethod_value["HTTP_METHOD_"+methodName]; ok {
+		treq.Method = gen.HttpMethod(val)
+	}
+
 	treq.Path = req.URI().Path()
 	treq.Body = req.Body()
 

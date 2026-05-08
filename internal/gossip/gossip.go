@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"QMesh-Sidecar/internal/protos/pb/gen/gossip"
+
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -208,7 +209,6 @@ func (g *Gossip) BroadcastTo(addr *net.UDPAddr) {
 	}
 	g.udpConn.WriteToUDP(data, addr)
 }
-
 
 func (g *Gossip) buildMessage() (*gossip.GossipMsg, []*gossip.NodeUpdates, []byte) {
 	diff := g.state.GetDiff()

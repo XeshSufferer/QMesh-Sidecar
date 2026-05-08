@@ -57,45 +57,47 @@ func encode(dst []byte, b byte) {
 
 func UUIDv4() string {
 	bptr := bufferPool.Get().(*buff)
-	b := *bptr
+	bptr.buff = bptr.buff[:16]
 
-	_, err := rand.Read(b.buff)
+	_, err := rand.Read(bptr.buff)
 	if err != nil {
+		bptr.buff = bptr.buff[:0]
 		bufferPool.Put(bptr)
 		panic(err)
 	}
 
-	b.buff[6] = (b.buff[6] & 0x0F) | 0x40
-	b.buff[8] = (b.buff[8] & 0x3F) | 0x80
+	bptr.buff[6] = (bptr.buff[6] & 0x0F) | 0x40
+	bptr.buff[8] = (bptr.buff[8] & 0x3F) | 0x80
 
 	// 36 bytes UUID string
 	out := make([]byte, 36)
 
-	encode(out[0:2], b.buff[0])
-	encode(out[2:4], b.buff[1])
-	encode(out[4:6], b.buff[2])
-	encode(out[6:8], b.buff[3])
+	encode(out[0:2], bptr.buff[0])
+	encode(out[2:4], bptr.buff[1])
+	encode(out[4:6], bptr.buff[2])
+	encode(out[6:8], bptr.buff[3])
 	out[8] = '-'
 
-	encode(out[9:11], b.buff[4])
-	encode(out[11:13], b.buff[5])
+	encode(out[9:11], bptr.buff[4])
+	encode(out[11:13], bptr.buff[5])
 	out[13] = '-'
 
-	encode(out[14:16], b.buff[6])
-	encode(out[16:18], b.buff[7])
+	encode(out[14:16], bptr.buff[6])
+	encode(out[16:18], bptr.buff[7])
 	out[18] = '-'
 
-	encode(out[19:21], b.buff[8])
-	encode(out[21:23], b.buff[9])
+	encode(out[19:21], bptr.buff[8])
+	encode(out[21:23], bptr.buff[9])
 	out[23] = '-'
 
-	encode(out[24:26], b.buff[10])
-	encode(out[26:28], b.buff[11])
-	encode(out[28:30], b.buff[12])
-	encode(out[30:32], b.buff[13])
-	encode(out[32:34], b.buff[14])
-	encode(out[34:36], b.buff[15])
+	encode(out[24:26], bptr.buff[10])
+	encode(out[26:28], bptr.buff[11])
+	encode(out[28:30], bptr.buff[12])
+	encode(out[30:32], bptr.buff[13])
+	encode(out[32:34], bptr.buff[14])
+	encode(out[34:36], bptr.buff[15])
 
+	bptr.buff = bptr.buff[:0]
 	bufferPool.Put(bptr)
 	return ZeroAllocBytesToString(out)
 }

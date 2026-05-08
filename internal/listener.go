@@ -138,7 +138,9 @@ func (l *Listener) serveStream(stream *quic.Stream) {
 	resp := fasthttp.AcquireResponse()
 	defer ReleaseResponse(resp)
 
-	SendReq(encodedReq, resp)
+	if err := SendReq(encodedReq, resp); err != nil {
+		return
+	}
 
 	response, err := EncodeResponseFast(resp)
 	defer ReleaseEncodedResponse(response)
