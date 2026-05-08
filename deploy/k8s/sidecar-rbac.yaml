@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: qmesh-sidecar
+  namespace: default
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: qmesh-sidecar-role
+  namespace: default
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: qmesh-sidecar-binding
+  namespace: default
+subjects:
+  - kind: ServiceAccount
+    name: qmesh-sidecar
+    namespace: default
+roleRef:
+  kind: Role
+  name: qmesh-sidecar-role
+  apiGroup: rbac.authorization.k8s.io

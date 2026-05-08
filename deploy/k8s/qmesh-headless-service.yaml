@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: qmesh-sidecar
+  namespace: default
+  labels:
+    app: qmesh-sidecar
+spec:
+  clusterIP: None
+  selector:
+    app: qmesh-sidecar
+  ports:
+    - name: gossip
+      port: 4221
+      targetPort: 4221
+      protocol: UDP
+    - name: quic
+      port: 4224
+      targetPort: 4224
+      protocol: TCP
